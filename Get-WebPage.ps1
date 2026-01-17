@@ -1,68 +1,79 @@
-# 1. Define C# code that RETURNS data instead of printing it
-$csharpCode = @'
-using System;
-using System.Net.Http;
-using System.Threading.Tasks;
-using System.Text; // Required for building the output string
+# Get-WebPage.ps1
+# Portable PowerShell 7 Version
+# Updated: No Regex used for URL cleaning
 
-public class WebToolCaptured
-{
-    // Change return type from 'void' to 'string'
-    public static string Download(string url, bool showHeaders)
-    {
-        return DownloadAsync(url, showHeaders).GetAwaiter().GetResult();
-    }
-
-    private static async Task<string> DownloadAsync(string url, bool showHeaders)
-    {
-        // We use StringBuilder to collect the text
-        StringBuilder sb = new StringBuilder();
-
-        using (HttpClient client = new HttpClient())
-        {
-            try 
-            {
-                if (showHeaders)
-                {
-                    HttpResponseMessage response = await client.GetAsync(url);
-                    
-                    sb.AppendLine(string.Format("Status: {0}", response.StatusCode));
-                    
-                    foreach (var header in response.Headers)
-                    {
-                        sb.AppendLine(string.Format("{0}: {1}", header.Key, string.Join(", ", header.Value)));
-                    }
-                }
-                else
-                {
-                    string content = await client.GetStringAsync(url);
-                    
-                    sb.AppendLine(string.Format("", url));
-                    sb.Append(content);
-                }
-            }
-            catch (Exception ex)
-            {
-                sb.AppendLine("Error: " + ex.Message);
-            }
-        }
-        
-        // Return the collected text to PowerShell
-        return sb.ToString();
-    }
-}
-'@
-
-# 2. Compile the code
-Add-Type -TypeDefinition $csharpCode -Language CSharp -IgnoreWarnings -ReferencedAssemblies "System.Net.Http"
-
-# 3. Create the function
 function Get-WebPage {
     param(
         [Parameter(Mandatory=$true)][string]$Uri,
-        [switch]$Headers
+        [int]$WaitSeconds = 5
     )
 
-    # Now the data flows out of C# into the PowerShell pipeline
-    return [WebToolCaptured]::Download($Uri, $Headers)
+    # ---------------------------------------------------------
+    # 1. URL SANITIZATION (String Method Version)
+    # ---------------------------------------------------------
+    
+    # A. Handle Markdown Links: [Link Text](https://url.com)
+    #    Logic: If it contains "](" and ends with ")", we split it.
+    if ($Uri.Contains("](") -and $Uri.EndsWith(")")) {
+        $parts = $Uri.Split(@("]("), [System.StringSplitOptions]::None)
+        # Take the part after "](" and remove the trailing ")"
+        if ($parts.Count -gt 1) {
+            $Uri = $parts[1].TrimEnd(")")
+        }
+    }
+
+    # B. Cleanup common dirty characters
+    #    We manually replace brackets, parens, and quotes.
+    $Uri = $Uri.Replace("[", "").Replace("]", "")
+    $Uri = $Uri.Replace("(", "").Replace(")", "")
+    $Uri = $Uri.Replace('"', "").Replace("'", "")
+    $Uri = $Uri.Trim()
+
+    # C. Auto-Add HTTPS
+    #    Check if it starts with http/https (Case insensitive)
+    if (-not $Uri.StartsWith("http", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $Uri = "https://" + $Uri
+    }
+
+    # Debug: Show the cleaned URL
+    Write-Host "Target URL: $Uri" -ForegroundColor DarkGray
+
+    # ---------------------------------------------------------
+    # 2. AUTO-LOAD DEPENDENCIES (Root Folder)
+    # ---------------------------------------------------------
+    $root = $PSScriptRoot
+    
+    try {
+        Add-Type -Path (Join-Path $root "System.Drawing.Common.dll") -ErrorAction Stop
+        Add-Type -Path (Join-Path $root "Newtonsoft.Json.dll") -ErrorAction Stop
+        Add-Type -Path (Join-Path $root "WebDriver.dll") -ErrorAction Stop
+    }
+    catch {
+        Write-Error "Failed to load dependencies. Ensure DLLs are in: $root"
+        return
+    }
+
+    # ---------------------------------------------------------
+    # 3. CONFIGURE EDGE
+    # ---------------------------------------------------------
+    $driverPath = Join-Path $root "msedgedriver.exe"
+    if (-not (Test-Path $driverPath)) { Write-Error "Missing msedgedriver.exe"; return }
+
+    $options = New-Object OpenQA.Selenium.Edge.EdgeOptions
+    $options.AddArgument("--headless=new")
+    $options.AddArgument("--disable-gpu")
+    $options.AddArgument("--log-level=3")
+
+    $service = [OpenQA.Selenium.Edge.EdgeDriverService]::CreateDefaultService($root)
+    $service.HideCommandPromptWindow = $true
+
+    try {
+        $driver = New-Object OpenQA.Selenium.Edge.EdgeDriver($service, $options)
+        $driver.Navigate().GoToUrl($Uri)
+        
+        if ($WaitSeconds -gt 0) { Start-Sleep -Seconds $WaitSeconds }
+        return $driver.PageSource
+    }
+    catch { Write-Error $_.Exception.Message }
+    finally { if ($driver) { $driver.Quit() } }
 }

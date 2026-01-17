@@ -1,21 +1,23 @@
-# Get-WebPage
+# Get-WebPage (Portable)
 
-A robust utility to download web pages and inspect HTTP headers. It combines the raw speed and modern standards of C# (`HttpClient`) with the ease of use of PowerShell.
+A self-contained, portable utility to capture dynamic web pages using PowerShell 7 and Selenium.
 
-## Features
-- **Hybrid Architecture:** Writes C# code directly inside a PowerShell script—no external `.exe` or compilation required.
-- **Pipeline Support:** Returns string data directly to the pipeline, allowing you to save to variables or redirect to files (`> file.html`).
-- **Download HTML:** Fetch the raw HTML string of any URL.
-- **Inspect Headers:** Retrieve status codes and response headers.
-- **Modern Standards:** Uses `System.Net.Http.HttpClient` (Async/Await) to prevent UI freezing and ensure efficient networking.
+## 📦 Tech Stack & Versions
+This tool runs in a completely isolated environment (Portable Mode). The following versions are bundled or required:
 
-## Getting Started
+| Component | Version | Notes |
+| :--- | :--- | :--- |
+| **PowerShell Core** | **7.4.6** (LTS) | Portable x64 edition. No installation required. |
+| **Selenium WebDriver** | **4.18.1** | .NET Standard 2.0 version. |
+| **Newtonsoft.Json** | **13.0.3** | Required for data serialization. |
+| **System.Drawing.Common** | **4.7.2** | Required for Selenium graphical operations. |
+| **Edge Driver** | **143.0.3650.139** | *Must match the Edge Browser version installed on the host machine.* |
 
-### Prerequisites
-- Windows PowerShell 5.1 or PowerShell Core (pwsh)
-- .NET Framework (Pre-installed on most Windows machines)
+## 🚀 Quick Start
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone [https://github.com/cushitic/Get-WebPage.git](https://github.com/cushitic/Get-WebPage.git)
+1. **Unzip** the folder to any location (USB drive, Desktop, etc.).
+2. **Double-click** `Launch_Console.bat`.
+   - This opens a portable PowerShell 7 terminal with the tool pre-loaded.
+3. **Run the command:**
+   ```powershell
+   Get-WebPage -Uri "google.com"
